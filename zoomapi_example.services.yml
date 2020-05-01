@@ -1,0 +1,5 @@
+services:
+  zoomapi_example.event_subscriber:
+    class: Drupal\zoomapi_example\ZoomApiWebhookEventSubscriber
+    tags:
+      - {name: event_subscriber}

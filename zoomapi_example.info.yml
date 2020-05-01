@@ -1,0 +1,7 @@
+
+type: module
+name: 'Zoom API Example'
+description: 'Example custom module implementing the Zoom API module.'
+core: 8.x
+dependencies:
+  - zoomapi:zoomapi

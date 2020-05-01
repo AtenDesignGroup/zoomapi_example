@@ -1,0 +1,85 @@
+<?php
+
+use Drupal\Core\Entity\EntityInterface;
+use GuzzleHttp\Exception\RequestException;
+
+/**
+ * Implements hook_ENTITY_TYPE_update().
+ *
+ * This example creates a webinar instance
+ * when a webinar node is saved in Drupal.
+ */
+function zoomapi_example_node_presave(EntityInterface $entity) {
+  if ($entity->getType() != 'webinar') {
+    return;
+  }
+
+  // No webinar owner defined.
+  // This field contains the zoom user's email address.
+  if ($entity->field_zoom_webinar_owner->isEmpty()) {
+    return;
+  }
+
+  // Zoom webinar already exists. Do not continue.
+  // This field is populated when the webinar is created in zoom.
+  if (!$entity->field_zoom_webinar_id->isEmpty()) {
+    return;
+  }
+
+  $config = \Drupal::config('system.date');
+  $timezone = $config->get('timezone.default');
+
+  // Prepare array according to webinars post endpoint.
+  // See https://marketplace.zoom.us/docs/api-reference/zoom-api/webinars/webinarcreate.
+  // This is all converted to JSON by the client.
+  $webinar_values = [
+    'topic' => $entity->getTitle(),
+    'type' => 5,
+    'start_time' => $entity->field_date->value . 'Z',
+    'duration' => '60',
+    'timezone' => $timezone,
+    'password' => '',
+    'agenda' => $entity->get('field_teaser')->value,
+    'recurrence' => [
+      'type' => 1,
+      'repeat_interval' => 1,
+      'end_date_time' => $entity->field_date->end_value . 'Z',
+    ],
+    'settings' => [
+      'host_video' => 'false',
+      'panelists_video' => 'false',
+      'practice_session' => 'true',
+      'hd_video' => 'true',
+      'approval_type' => 0,
+      'registration_type' => 1,
+      'audio' => 'both',
+      'auto_recording' => 'cloud',
+      'enforce_login' => 'false',
+      'enforce_login_domains' => '',
+      'alternative_hosts' => '',
+      'close_registration' => 'true',
+      'show_share_button' => 'true',
+      'allow_multiple_devices' => 'false',
+    ],
+  ];
+  $owner = $entity->field_zoom_webinar_owner->getString();
+  $client = \Drupal::service('zoomapi.client');
+  try {
+    // Make the POST request to the zoom api.
+    $zoom_request = $client->request(
+      'post',
+      '/users/' . $owner . '/webinars',
+      [],
+      $webinar_values
+    );
+    // Save the zoom id back to the webinar node.
+    $entity->set('field_zoom_webinar_id', $zoom_request['id']);
+    // Show success!.
+    \Drupal::messenger()->addStatus(t('This webinar was successfully created in Zoom.'));
+  }
+  catch (RequestException $exception) {
+    // Zoom api already logs errors, but you could log more.
+    \Drupal::messenger()->addWarning(t('This webinar could not be created in Zoom.'));
+  }
+
+}
